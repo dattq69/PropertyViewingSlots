@@ -1,0 +1,43 @@
+## Core build artifacts
+[Bb]in/
+[Oo]bj/
+*.msi
+*.msix
+*.msm
+*.msp
+
+## Visual Studio files
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## VS Code files
+.vscode/
+
+## Rider / Resharper files
+.idea/
+*.sln.iml
+
+## User-specific files & local history
+.localhistory/
+*.vshistory/
+.specstory/
+
+## OS-generated files
+Thumbs.db
+.DS_Store
+
+## Log files
+*.log
+*.binlog
+
+## Test results
+TestResults/
+*.trx
+
+## NuGet Packages
+*.nupkg
+# Include packages if you are doing repository-based package restore
+#!**/packages/
