@@ -62,7 +62,7 @@ Configuration is validated during startup. The service intentionally does not us
 - Replace the in-memory property-location mapping and booking store with a property service plus EF Core/PostgreSQL, using a unique `(PropertyId, StartTimeUtc)` index and transaction/constraint handling as the final cross-instance double-booking protection.
 - Add authentication and authorization, rate limiting, HTTPS enforcement, audit logging, secret management, and operational monitoring.
 - Establish domain rules for property-specific hours, blackout dates, agent availability, multiple capacities, lead times, cancellations, and rescheduling.
-- Add paging or a maximum date-range size, asynchronous persistence, structured logs/metrics/traces, and measured caching where needed.
+- Add paging, asynchronous persistence, structured logs/metrics/traces, and measured caching where needed.
 
 ## AI usage
 
