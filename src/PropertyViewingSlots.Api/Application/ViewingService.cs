@@ -111,6 +111,13 @@ public sealed class ViewingService(
             {
                 errors["startTime"] = ["Start time must be on a 30-minute boundary in the property's local time zone."];
             }
+            else if (localStart.TimeOfDay == location.LastSlotStart.ToTimeSpan())
+            {
+                errors["startTime"] =
+                [
+                    $"The property is closed at {location.LastSlotStart:HH\\:mm} in {location.Name}."
+                ];
+            }
             else if (localStart.TimeOfDay < location.FirstSlotStart.ToTimeSpan() ||
                      localStart.TimeOfDay > location.LastSlotStart.ToTimeSpan())
             {
@@ -183,7 +190,7 @@ public sealed class ViewingService(
 
         for (var date = query.From; ; date = date.AddDays(1))
         {
-            for (var start = location!.FirstSlotStart; start <= location.LastSlotStart; start = start.AddMinutes(30))
+            for (var start = location!.FirstSlotStart; start < location.LastSlotStart; start = start.AddMinutes(30))
             {
                 var localSlot = date.ToDateTime(start, DateTimeKind.Unspecified);
                 if (location.TimeZone.IsInvalidTime(localSlot))

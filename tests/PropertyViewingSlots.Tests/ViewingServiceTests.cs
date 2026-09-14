@@ -12,8 +12,8 @@ public sealed class ViewingServiceTests
     private static readonly DateTimeOffset FixedNow = Utc(2025, 1, 2, 12, 0);
 
     [TestCase(9, 0)]
-    [TestCase(19, 30)]
-    public void Book_AllowsConfiguredUkFirstAndLastSlot(int hour, int minute)
+    [TestCase(19, 0)]
+    public void Book_AllowsConfiguredUkFirstAndFinalBookableSlot(int hour, int minute)
     {
         var result = CreateService().Book(new BookViewingCommand("property-uk-123", "user-1", Utc(2025, 1, 3, hour, minute)));
 
@@ -32,6 +32,18 @@ public sealed class ViewingServiceTests
         var result = CreateService().Book(new BookViewingCommand("property-uk-123", "user-1", Utc(2025, 1, 3, hour, minute)));
 
         Assert.That(result.Status, Is.EqualTo(BookingStatus.ValidationFailed));
+    }
+
+    [Test]
+    public void Book_RejectsConfiguredClosingTime()
+    {
+        var result = CreateService().Book(new BookViewingCommand("property-uk-123", "user-1", Utc(2025, 1, 3, 19, 30)));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Status, Is.EqualTo(BookingStatus.ValidationFailed));
+            Assert.That(result.Errors["startTime"], Does.Contain("The property is closed at 19:30 in UK."));
+        });
     }
 
     [Test]
@@ -119,9 +131,9 @@ public sealed class ViewingServiceTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(initialSearch.Slots, Has.Count.EqualTo(22));
+            Assert.That(initialSearch.Slots, Has.Count.EqualTo(21));
             Assert.That(initialSearch.Slots, Is.All.Matches<DateTimeOffset>(slot => slot.Offset == TimeSpan.Zero));
-            Assert.That(subsequentSearch.Slots, Has.Count.EqualTo(21));
+            Assert.That(subsequentSearch.Slots, Has.Count.EqualTo(20));
             Assert.That(subsequentSearch.Slots, Does.Not.Contain(Utc(2025, 1, 3, 10, 0)));
         });
     }
@@ -136,9 +148,9 @@ public sealed class ViewingServiceTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(result.Slots, Has.Count.EqualTo(22));
+            Assert.That(result.Slots, Has.Count.EqualTo(21));
             Assert.That(result.Slots.First(), Is.EqualTo(Utc(2025, 6, 10, 13, 0)));
-            Assert.That(result.Slots.Last(), Is.EqualTo(Utc(2025, 6, 10, 23, 30)));
+            Assert.That(result.Slots.Last(), Is.EqualTo(Utc(2025, 6, 10, 23, 0)));
         });
     }
 
@@ -158,8 +170,7 @@ public sealed class ViewingServiceTests
             Assert.That(springForward.Slots, Is.Empty);
             Assert.That(autumnFallback.Slots, Is.EqualTo(new[]
             {
-                Utc(2025, 10, 26, 1, 0),
-                Utc(2025, 10, 26, 1, 30)
+                Utc(2025, 10, 26, 1, 0)
             }));
         });
     }
