@@ -21,13 +21,13 @@ dotnet test
 
 ## Location and business-hours configuration
 
-`src/PropertyViewingSlots.Api/appsettings.json` maps each property to a location. A location supplies an IANA time-zone ID and its local first and last valid slot starts.
+`src/PropertyViewingSlots.Api/appsettings.json` maps each property to a location. A location supplies an IANA time-zone ID, its local first bookable slot start, and its exclusive closing time.
 
 ```json
 "Locations": {
-  "UK": { "TimeZoneId": "Europe/London", "FirstSlotStart": "09:00", "LastSlotStart": "19:30" },
-  "VN": { "TimeZoneId": "Asia/Ho_Chi_Minh", "FirstSlotStart": "09:00", "LastSlotStart": "19:30" },
-  "US-East": { "TimeZoneId": "America/New_York", "FirstSlotStart": "09:00", "LastSlotStart": "19:30" }
+  "UK": { "TimeZoneId": "Europe/London", "FirstSlotStart": "09:00", "LastSlotStart": "20:00" },
+  "VN": { "TimeZoneId": "Asia/Ho_Chi_Minh", "FirstSlotStart": "08:00", "LastSlotStart": "22:00" },
+  "US-East": { "TimeZoneId": "America/New_York", "FirstSlotStart": "09:00", "LastSlotStart": "21:00" }
 }
 ```
 
@@ -55,7 +55,7 @@ Configuration is validated during startup. The service intentionally does not us
 
 `GET /api/properties/property-uk-123/available-viewing-slots?from=2026-06-10&to=2026-06-11`
 
-`from` and `to` are inclusive calendar dates in the property's configured location. The response contains unbooked, future 30-minute slots within that location's configured local hours, represented as `startTimeUtc` values. For example, a 09:00 UK BST slot is `08:00Z`, Vietnam is `02:00Z`, and US-East summer time is `13:00Z`.
+`from` and `to` are inclusive calendar dates in the property's configured location and may span at most 31 days. The response contains unbooked, future 30-minute slots from the configured opening time up to, but not including, the closing time, represented as `startTimeUtc` values. For example, a 09:00 UK BST slot is `08:00Z`, Vietnam is `02:00Z`, and US-East summer time is `13:00Z`.
 
 ## Next Steps
 

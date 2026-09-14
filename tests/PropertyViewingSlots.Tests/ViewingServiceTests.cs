@@ -57,6 +57,43 @@ public sealed class ViewingServiceTests
     }
 
     [Test]
+    public void Book_ReturnsAllStartTimeValidationErrors()
+    {
+        var result = CreateService().Book(new BookViewingCommand(
+            "property-uk-123",
+            "user-1",
+            new DateTimeOffset(2020, 1, 1, 10, 0, 0, TimeSpan.FromHours(1))));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Status, Is.EqualTo(BookingStatus.ValidationFailed));
+            Assert.That(result.Errors["startTime"], Does.Contain("Start time must use a UTC offset of +00:00."));
+            Assert.That(result.Errors["startTime"], Does.Contain("Start time must be in the future."));
+        });
+    }
+
+    [Test]
+    public void Book_RejectsSubMinuteTickWithoutCreatingAnotherBooking()
+    {
+        var repository = new InMemoryViewingRepository();
+        var service = CreateService(repository: repository);
+        var slot = Utc(2025, 1, 3, 10, 0);
+
+        var initialBooking = service.Book(new BookViewingCommand("property-uk-123", "user-1", slot));
+        var subMinuteBooking = service.Book(new BookViewingCommand("property-uk-123", "user-2", slot.AddTicks(1)));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(initialBooking.Status, Is.EqualTo(BookingStatus.Created));
+            Assert.That(subMinuteBooking.Status, Is.EqualTo(BookingStatus.ValidationFailed));
+            Assert.That(
+                subMinuteBooking.Errors["startTime"],
+                Does.Contain("Start time must be on a 30-minute boundary in the property's local time zone."));
+            Assert.That(repository.GetByProperty("property-uk-123"), Has.Count.EqualTo(1));
+        });
+    }
+
+    [Test]
     public void Book_RejectsPastSlot()
     {
         var result = CreateService().Book(new BookViewingCommand("property-uk-123", "user-1", Utc(2025, 1, 2, 11, 30)));
@@ -152,6 +189,40 @@ public sealed class ViewingServiceTests
             Assert.That(result.Slots.First(), Is.EqualTo(Utc(2025, 6, 10, 13, 0)));
             Assert.That(result.Slots.Last(), Is.EqualTo(Utc(2025, 6, 10, 23, 0)));
         });
+    }
+
+    [Test]
+    public void Search_AllowsAnInclusiveThirtyOneDayRange()
+    {
+        var from = new DateOnly(2025, 1, 3);
+        var result = CreateService().SearchAvailableSlots(new SearchAvailableSlotsQuery(
+            "property-uk-123", from, from.AddDays(30)));
+
+        Assert.That(result.IsValid, Is.True);
+    }
+
+    [Test]
+    public void Search_RejectsRangeLongerThanThirtyOneInclusiveDays()
+    {
+        var from = new DateOnly(2025, 1, 3);
+        var result = CreateService().SearchAvailableSlots(new SearchAvailableSlotsQuery(
+            "property-uk-123", from, from.AddDays(31)));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.IsValid, Is.False);
+            Assert.That(result.Errors["dateRange"], Does.Contain("The date range must not exceed 31 days."));
+        });
+    }
+
+    [Test]
+    public void Search_HandlesClosingTimeAtTwentyThreeThirtyWithoutWrapping()
+    {
+        var options = CreateOptions(ukFirstSlotStart: "23:00", ukLastSlotStart: "23:30");
+        var result = CreateService(options: options).SearchAvailableSlots(new SearchAvailableSlotsQuery(
+            "property-uk-123", new DateOnly(2025, 1, 3), new DateOnly(2025, 1, 3)));
+
+        Assert.That(result.Slots, Is.EqualTo(new[] { Utc(2025, 1, 3, 23, 0) }));
     }
 
     [Test]

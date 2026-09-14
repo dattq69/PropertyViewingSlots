@@ -20,8 +20,11 @@ builder.Services.AddScoped<IViewingService, ViewingService>();
 
 var app = builder.Build();
 
-app.UseSwagger();
-app.UseSwaggerUI();
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
 app.MapPost("/api/viewings", (
     BookViewingRequest? request,
@@ -86,3 +89,5 @@ app.MapGet("/api/properties/{propertyId}/available-viewing-slots", (
 .WithName("SearchAvailableViewingSlots");
 
 app.Run();
+
+public partial class Program;

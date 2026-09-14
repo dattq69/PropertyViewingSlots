@@ -70,11 +70,14 @@ public sealed class ViewingService(
     IPropertyLocationProvider propertyLocationProvider,
     TimeProvider timeProvider) : IViewingService
 {
+    private const int MaximumSearchRangeDays = 31;
+
     public BookViewingResult Book(BookViewingCommand command)
     {
         var propertyId = command.PropertyId?.Trim();
         var userId = command.UserId?.Trim();
         var errors = new Dictionary<string, string[]>();
+        var startTimeErrors = new List<string>();
 
         if (string.IsNullOrWhiteSpace(propertyId))
         {
@@ -101,7 +104,7 @@ public sealed class ViewingService(
 
         if (command.StartTime.Offset != TimeSpan.Zero)
         {
-            errors["startTime"] = ["Start time must use a UTC offset of +00:00."];
+            startTimeErrors.Add("Start time must use a UTC offset of +00:00.");
         }
 
         if (location is not null)
@@ -109,28 +112,28 @@ public sealed class ViewingService(
             var localStart = TimeZoneInfo.ConvertTime(command.StartTime, location.TimeZone);
             if (!IsSlotBoundary(localStart))
             {
-                errors["startTime"] = ["Start time must be on a 30-minute boundary in the property's local time zone."];
+                startTimeErrors.Add("Start time must be on a 30-minute boundary in the property's local time zone.");
             }
             else if (localStart.TimeOfDay == location.LastSlotStart.ToTimeSpan())
             {
-                errors["startTime"] =
-                [
-                    $"The property is closed at {location.LastSlotStart:HH\\:mm} in {location.Name}."
-                ];
+                startTimeErrors.Add($"The property is closed at {location.LastSlotStart:HH\\:mm} in {location.Name}.");
             }
             else if (localStart.TimeOfDay < location.FirstSlotStart.ToTimeSpan() ||
                      localStart.TimeOfDay > location.LastSlotStart.ToTimeSpan())
             {
-                errors["startTime"] =
-                [
-                    $"Start time must be between {location.FirstSlotStart:HH\\:mm} and {location.LastSlotStart:HH\\:mm} in {location.Name}."
-                ];
+                startTimeErrors.Add(
+                    $"Start time must be between {location.FirstSlotStart:HH\\:mm} and {location.LastSlotStart:HH\\:mm} in {location.Name}.");
             }
         }
 
         if (command.StartTime.ToUniversalTime() <= timeProvider.GetUtcNow())
         {
-            errors["startTime"] = ["Start time must be in the future."];
+            startTimeErrors.Add("Start time must be in the future.");
+        }
+
+        if (startTimeErrors.Count > 0)
+        {
+            errors["startTime"] = startTimeErrors.ToArray();
         }
 
         if (errors.Count > 0)
@@ -163,6 +166,10 @@ public sealed class ViewingService(
         {
             errors["dateRange"] = ["The from date must not be after the to date."];
         }
+        else if ((query.To.DayNumber - query.From.DayNumber) + 1 > MaximumSearchRangeDays)
+        {
+            errors["dateRange"] = [$"The date range must not exceed {MaximumSearchRangeDays} days."];
+        }
 
         ResolvedViewingLocation? location = null;
         if (!string.IsNullOrWhiteSpace(propertyId))
@@ -190,24 +197,26 @@ public sealed class ViewingService(
 
         for (var date = query.From; ; date = date.AddDays(1))
         {
-            for (var start = location!.FirstSlotStart; start < location.LastSlotStart; start = start.AddMinutes(30))
+            for (var start = location!.FirstSlotStart; start < location.LastSlotStart;)
             {
                 var localSlot = date.ToDateTime(start, DateTimeKind.Unspecified);
-                if (location.TimeZone.IsInvalidTime(localSlot))
+                if (!location.TimeZone.IsInvalidTime(localSlot))
                 {
-                    continue;
+                    var slotStartUtc = new DateTimeOffset(
+                        TimeZoneInfo.ConvertTimeToUtc(localSlot, location.TimeZone),
+                        TimeSpan.Zero);
+
+                    if (slotStartUtc > now && !bookedSlotStarts.Contains(slotStartUtc))
+                    {
+                        slots.Add(slotStartUtc);
+                    }
                 }
 
-                var slotStartUtc = new DateTimeOffset(
-                    TimeZoneInfo.ConvertTimeToUtc(localSlot, location.TimeZone),
-                    TimeSpan.Zero);
-
-                if (slotStartUtc <= now || bookedSlotStarts.Contains(slotStartUtc))
+                start = start.AddMinutes(30, out var wrappedDays);
+                if (wrappedDays > 0)
                 {
-                    continue;
+                    break;
                 }
-
-                slots.Add(slotStartUtc);
             }
 
             if (date == query.To)
@@ -220,7 +229,7 @@ public sealed class ViewingService(
     }
 
     private static bool IsSlotBoundary(DateTimeOffset localStart) =>
-        (localStart.Minute is 0 or 30) && localStart.Second == 0 && localStart.Millisecond == 0;
+        (localStart.Minute is 0 or 30) && localStart.Ticks % TimeSpan.TicksPerMinute == 0;
 }
 
 public static class ViewingMapper
